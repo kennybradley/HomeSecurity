@@ -1,0 +1,119 @@
+    1  sudo apt-get install git
+    2  sudo apt-get install python3
+    3  mkdir git
+    4  cd git
+    5  git clone https://github.com/kennybradley/security.git
+    6  git clone https://github.com/kennybradley/reolinkapipy.git
+    7  sudo apt-get install opencv-python
+    8  sudo apt-get install python-opencv
+    9  sudo apt-get install tensorflow
+   10  sudo apt-get install --no-cache-dir tensorflow
+   11  pip3 install --no-cache-dir tensorflow
+   12  sudo apt-get install python-pip3
+   13  sudo apt-get install pip3-python
+   14  sudo apt-get install python3-pip
+   15  pip3 install --no-cache-dir tensorflow
+   16  python3
+   17  sudo apt-get install libblas-dev liblapack-dev
+   18  python3
+   19  pip3 install -upgrade numpy
+   20  pip3 install upgrade numpy
+   21  sudo apt-get install libatlas-base-dev
+   22  python3
+   23  sudo apt-get install hdfs
+   24  pip3 install --upgrade pip setuptools
+   25  pip3 install telegram-send
+   26  telegram-send --configure
+   27  nano /etc/basrc
+   28  nano /etc/.bashrc
+   29  nano /etc/ld.so.conf
+   30  telegram-send --configure
+   31  pip3 install telegram-send
+   32  cd /home/pi/bin
+   33  cd /home/pi/.bin
+   34  cd /home/pi/
+   35  ls
+   36  cd ..
+   37  ls
+   38  cd pi
+   39  ls
+   40  pip3 uninstall telegram-send
+   41  pip3 install telegram-send
+   42  nano /etc/ld.so.conf
+   43  sudo nano /etc/ld.so.conf
+   44  ldconfig
+   45  sudo ldconfig
+   46  telegram-send --configure
+   47  cd /sbin
+   48  ls
+   49  ./ldconf
+   50  cd ..
+   51  pip3 uninstall telegram-send
+   52  sudo nano /etc/ld.so.conf
+   53  ldconf
+   54  ldconfig
+   55  sudo ldconfig
+   56  telegram-send --config
+   57  reboot
+   58  screen -ls
+   59  ls
+   60  python3 test_mobilenet.py 
+   61  nano test_mobilenet.py 
+   62  python3 test_mobilenet.py 
+   63  pip3 install h5py
+   64  sudo apt-get install libhdf5-dev
+   65  python3 test_mobilenet.py 
+   66  sudo apt-get install h5py==2.10.0
+   67  pip3 install h5py==2.10.0
+   68  python3 test_mobilenet.py 
+   69  nano test_mobilenet.py 
+   70  pip3 install python-opencv
+   71  pip3 install opencv-python
+   72  pip3 install opencv-python=4.4.0.42
+   73  pip3 install opencv-python==4.4.0.42
+   74  python3 test_mobilenet.py 
+   75  sudo apt-get install libwebp
+   76  file libsebp.so.5
+   77  sudo apt-get install libwebp
+   78  sudo apt-get install cwebp
+   79  sudo apt-get install dwebp
+   80  sudo apt-get install libwebp-dev
+   81  sudo apt-get update
+   82  sudo apt-get install libwebp-dev
+   83  python3 test_mobilenet.py 
+   84  sudo apt-get install libtiff-dev
+   85  python3 test_mobilenet.py 
+   86  sudo apt-get install libopenjp2-dev
+   87  sudo apt-get install libopenjp2
+   88  sudo apt-get install libopenjp2-7
+   89  python3 test_mobilenet.py 
+   90  sudo apt-get install liblmath-2_2
+   91  sudo apt-get install liblmath-2_2-dev
+   92  sudo apt-get install libilmbase-dev libopenexr-dev libgstreamer1.0-dev
+   93  python3 test_mobilenet.py 
+   94  sudo apt-get install libavcodec-dev
+   95  python3 test_mobilenet.py 
+   96  sudo apt-get install libavformat
+   97  sudo apt-get install libavformat-dev
+   98  python3 test_mobilenet.py 
+   99  sudo apt-get install libswscale-dev
+  100  python3 test_mobilenet.py 
+  101  sudo apt-get install libgtk3
+  102  sudo apt-get install libgtk3-dev
+  103  sudo apt-get install gtk3
+  104  sudo apt-get install gtk
+  105  sudo apt-get install gtk-dev
+  106  sudo apt-get install gtk3-dev
+  107  sudo apt-get install libgtk-3-dev
+  108  python3 test_mobilenet.py 
+  109  echo $PYTHONPATH
+  110  nano test_mobilenet.py 
+  111  python3 test_mobilenet.py 
+  112  cd ..
+  113  ls
+  114  cd security/
+  115  nano test_mobilenet.py 
+  116  python3 test_mobilenet.py 
+  117  nano test_mobilenet.py 
+  118  python3 test_mobilenet.py 
+  119  history > history.dump
