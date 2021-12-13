@@ -5,33 +5,33 @@ This is a project that uses IP cameras, local computing and the encrypted messag
 The end result will be notifications on your phone that looks like this:
 ![](Example.png)
 
-No snooping, no Ring/Amazon, no data privacy issues, just fast notifications for you and the people you approve can view these messages/images. 
+No snooping, no Ring/Amazon subscriptions, no Arlo, no data privacy issues, just fast notifications for you and the people you approve can view these messages/images. 
 
 Things that you will need:
 
-* Reolink cameras, as many as you want, but the system will have some delay after 4 cameras
+* Reolink cameras, as many as you want, but the system will add 100ms of delay per cameras
 * Raspberry pi 4 (any version) starts at $35
 * 8+GB microSD
-* Power over Ethernet (PoE) network switch (I used TL-SF1008P which supports 4 cameras) $50
+* Power over Ethernet (PoE) network switch (I used TL-SF1008P which supports 4 cameras) $50. Make sure you have enough PoE slots to power the cameras.
 * Networking cables
 * A way to mount your cameras (drill, screwdriver, etc)
 * A telegram account, or just make a new one
-* Mini hdmi connector to monitor (expert mode use ssh instead of a monitor)
+* Mini hdmi connector to monitor (expert mode: use ssh for the whole thing)
 
 ## Install the Cameras
 
-Make sure you have Reolink cameras because the interface that we use to monitor the stream only works for Reolink.
-At the bottom of ![this page](https://github.com/ReolinkCameraAPI/reolinkapipy) the current supported camera models is listed, I used RLC-410-5MP cameras. 
+Make sure you have Reolink cameras because the interface that we use to monitor the streams only works for Reolink.
+At the bottom of [this page](https://github.com/ReolinkCameraAPI/reolinkapipy) the current supported camera models is listed, I used RLC-410-5MP cameras. 
 
-This requires drilling and mounting the cameras, and running the networking cables to the PoE switch.  You can use a non-powered switch if you have a power adapter for each camera, but power is not always available where you want to plug in the camera.
+This requires drilling and mounting the cameras, and running the networking cables to the PoE switch.  You can use a non-powered switch if you have a power adapter for each camera, but power is not always available where you want to plug in the camera.  Wire your PoE switch to your router if you are going to be using separate devices. 
 
-This may be the most time intensive part but there's nothing I can do to help with that.
+Camera install may be the most time intensive part but there's nothing I can do to help with that.
 
 ## Setting up Raspberry pi 
 
 We are going to be monitoring the camera feeds and running code on the raspberry pi so the first step is set up the raspberry pi.
 
-This requires following ![this guide](https://projects.raspberrypi.org/en/projects/raspberry-pi-setting-up/2).
+This requires following [this guide](https://projects.raspberrypi.org/en/projects/raspberry-pi-setting-up/2).
 
 Finish setup to get to the desktop or terminal depending on your preferred settings.
 
@@ -54,9 +54,9 @@ You will now have the script downloaded along with all of the dependencies, the 
 
 ## Part 1 : generate a token
 
-Make/log in to a telegram account.
+Make/log in to a telegram account, you'll need a phone but you can also do this in a browser.
 
-Send a message to the user BotFather: 
+Send the following messages to the user BotFather: 
 
 * /start
 * /newbot
@@ -76,13 +76,16 @@ telegram-send --configure
 
 Insert the token that Part 1 gave you.
 
-This will ask you to search for UniqueNameOfNotification_bot on telegram and send a number to confirm setup.
+This will ask you to search for UniqueNameOfNotification_bot on telegram and send a number to confirm setup. Confirming this will allow the raspberry pi to send messages through the bot you just made.
 
 ## Part 3 : Getting the group ID 
 
-Login on ![the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to use your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
+Being able to send messages is good but sending requires a group ID.
+
+Login on [the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to verify with your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
 
 At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
+![](images/Setup1.jpg)
 
 Click on the group chat and the URL bar should look like this: https://web.telegram.org/z/#CHARCTERS_HERE
 
@@ -92,10 +95,10 @@ Everything after the # is your group chat ID.
 
 We need to write out the token and the group chat ID.  Change directories to the security script folder, using my suggested setup: cd /home/pi/security
 
-Then write out two files to that folder.  If you are using a gui you can use gedit, if you are using command line nano, vi or emacs.
+Update the setup.conf file with the token and group ID.  Open up using gedit by gui or nano/vi/emacs by command line.
 
-* Make token.txt and insert your token that looks like this 1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789 
-* Make group.txt and insert the characters from part 3 in the URL after the #
+Add the token so that it looks like TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789
+Add the group ID so that it looks like GROUP_ID=CHARACTERS_HERE
 
 # Get the camera IP addresses
 
@@ -107,32 +110,38 @@ Grab those IP addresses, you're going to need to log into each camera to set up 
 ## Configuring the cameras
 
 Insert the IP address into a web browser and you'll be given a landing page to log into the camera.  
+![](images/Landing.jpg)
+
 The default username is: admin
 The default password is empty so leave it blank. 
 
+![](images/Setup1.jpg)
 After you log in click on the gear in the top right.
 
-Then on the left side click on System then User Management.  This will allow you to insert a new password.
+![](images/Setup2.jpg)
 
-In /home/pi/security make a new file called cameras.csv and populate it in this style:
+Then on the left side click on System then User Management.  This will allow you to insert a new password. If you choose to add a new username remember to also reset the password of the admin login.  You don't want to leave that blank.
 
+![](images/Setup3.jpg)
+
+Update the section of the setup.conf from 
 ```
-192.168.0.51,username1,password1
-192.168.0.52,username2,password2
-192.168.0.53,username3,password3
-192.168.0.54,username4,password4
+IP_ADDRESS=[]
+USERNAMES=[]
+PASSWORDS=[]
 ```
-
-Where it is IP address, username to log into the camera, and password to log into the camera.
+to the corresponding login information such as:
+```
+IP_ADDRESS=[192.168.0.51, 192.168.0.52, 192.168.0.53, 192.168.0.54]
+USERNAMES=[userCam1, userCam2, userCam3, userCam4]
+PASSWORDS=[pass1, pass2, pass3, pass4]
+```
 
 # Finally Running 
 
 ## Sanity check
 
-We set up the telegram-send and the bot, we generated a token.txt, a group.txt, and a cameras.csv
-
-This should be changed to setup.conf where there is an empty setup.conf file in the repo and a junk example.conf file
-conf file should contain 
+We set up the telegram-send and the bot, we generated a token, a group ID, and set of IP addresses, usersnames and passwords.  Everything should be ready to run.
 
 
 ## Running natively
@@ -143,7 +152,9 @@ cd /home/pi/security
 python runHomeSecurity.py
 ```
 
-It should give a little bit of output saying that each of the cameras connected
+It should give a little bit of output saying that each of the cameras connected.  Feel free to disconnect the monitor cable and let it run.
+If you lose power or it gets reset for some reason simply repeat the two lines above to restart the program.
+
 
 ## Running remotely
 
