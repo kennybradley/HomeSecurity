@@ -1,76 +1,72 @@
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.layers import Dense, Activation
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.metrics import categorical_crossentropy
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.models import Model
-from tensorflow.keras.applications import imagenet_utils
-from sklearn.metrics import confusion_matrix
-import itertools
-import os
-import shutil
-import random
-import matplotlib.pyplot as plt
-
-noGPU = True
-
-if noGPU:
-  os.environ["CUDA_VISIBLE_DEVICES"]="-1"
-  os.environ["CUDA_VISIBLE_DEVICES"]="-1"
-else:
-  physical_devices = tf.config.experimental.list_physical_devices('GPU')
-  print("Num GPUs Available: ", len(physical_devices))
-  tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
-#mobile = tf.keras.applications.mobilenet.MobileNet(weights='imagenet')
-mobile = tf.keras.applications.resnet50.ResNet50(weights='imagenet')
+import time
+import cv2
+import telebot
+from reolinkapi import Camera
+from ncnn.model_zoo import get_model
 
 #hardware:
-#reolink RLC 410 5MP    ~$50 x4
-#netgear PoE switch     $167
-#cat 6  2x25 feet       $22 
-#cat 6 2x 75 feet       $46
+#RLC 410 5MP    $40 x4
+#netgear PoE switch     $50
+#300 foot reel          $36
+#cat 5 end caps         $10
 #raspberry pi 4. 4GB    $65
-#usb accelerator        $70
 
-#
+#any reolink camera, as many as you want, will run slower after 4
+#https://www.pishop.us/product/sata-hard-drive-to-usb-adapter/
+#https://www.pishop.us/product/raspberry-pi-4-model-b-2gb/
+#any ssd
+#16+GB microSD
 
-import time
-#background subtraction
-
-
-#maximum amount of saved storage in the directory = 1024*1024*1024*1024
-#save annotated images to some directory
-#save images before and after as a mp4 file in higher quality
-#manage 2 folders - low quality and high quality
-
-#for retrieval
-  #live playback
-  #recorded data
+#prompt password
+#prompt telegram info
 
 
-  
-#notification setup:
-# pip install telegram-send
-# telegram-send --configure
-# insert token:
-#     2092290746:AAGqWQGHEBVWmJdvWfjqjWZ1dRa3UQ8XwiM
+##connect SSD
+#sudo mkfs -t ext4 /dev/sda
+#sudo mkdir -p /mnt/ftpServer
+#sudo mount -t auto /dev/sda /mnt/ftpServer/
+#sudo chmod 777 /mnt/ftpServer
+#sudo cp /etc/fstab /etc/fstab.backup
 
-import telegram_send
-##code here
-#current = time.time()
-#if FrontDoorTimeout and (current - FrontDoorLastTimeout) > 300:
-# FrontDoorTimeout = False
-#
-#if FrontDoorMotionDetected and not FrontDoorTimeout:
-# telegram_send.send(messages=["Motion Detected at the front door"])
-# FrontDoorTimeout = True
-# FrontDoorLastTimeout = time.time() 
+##set the hdd to mount on reboot
+#UUID=`lsblk -o NAME,UUID | awk '{split($0,a,"sda"); print a[2]}' | xargs`
+#echo "UUID="$UUID" /mnt/ftpServer ext4 0 0 0" > append.txt
+#sudo cat /etc/fstab append.txt > /etc/fstab2
+#sudo mv /etc/fstab2 /etc/fstab
 
-#passed by reference, remove timeouts that expired
+
+##get ftp
+#sudo apt-get install vsftpd
+
+##configure ftp
+#echo -e '\nwrite_enable=YES\nlocal_umask=022\nchroot_local_user=YES\nuser_sub_token='$USER'\nlocal_root=/mnt/ftpServer' >> append.txt
+#sudo cat /etc/vsftpd.conf append.txt > vsftpd.conf
+#sudo mv vsftpd.conf /etc/vsftpd.conf
+
+#sudo service vsftpd restart
+#pip install pyTelegramBotAPI
+#pip install ncnn
+#pip install reolinkapi
+#pip install opencv-python
+
+#sudo apt-get install telegram-cli
+
+#need to write out token.txt
+#need to write out group.txt
+
+#need to auto reboot the script if it fails
+
+
+tokenFile = open("token.txt", "r").read()[:-1]
+groupID = open("group.txt", "r").read()[:-1]
+telegram = telebot.TeleBot(tokenFile)
+
+#print(tokenFile, groupID)
+
+TimeoutLength = 10
+MinimumBackgroundDiff = 2000
+
 def ClearTimeouts(TimeOuts):
   for key, data in TimeOuts.items():
     toRemove = []
@@ -78,8 +74,8 @@ def ClearTimeouts(TimeOuts):
       if time.time() > expiration:
         toRemove.append(key2)
     for r in toRemove:
-      print("\n\n\n\n\n\nTimeout cleared\n\n\n\n\n\n\n\n")
-      TimeOuts[key].pop(key2)
+      print("\n\nTimeout on Camera",key,"for",r," cleared\n\n")
+      TimeOuts[key].pop(r)
 
 def IsInTimeOut(TimeOuts, cameraNum, label):
   for key, data in TimeOuts.items():
@@ -88,121 +84,101 @@ def IsInTimeOut(TimeOuts, cameraNum, label):
         if d == label:
           return True
   return False
-      
-import cv2
-from reolinkapi import Camera
+
 
 #adding profile to Camera, and RTSP client allows us to use the 640x480 stream as input
-#this significantly cuts down on CPU usage and increases FPS
-#1.2GB used when res_net is running
-#i5 7600k cpu
-#25% at 7.5 fps
-#70% at 15 fps
-#
-#maybe the pi 4 can run resnet50 at 4 fps without issues
-#
+def non_blocking(IPList, pictureMode=True):
+    #populate main variables
+    num = len(IPList)
+    camImg = [None]*num
+    frameCount = [0]*num
 
-def blocking():
-    c1 = Camera("192.168.0.234", "admin", "sterlingarcher", profile="sub")
-#    c2 = Camera("192.168.0.234", "admin", "sterlingarcher")
-#    c3 = Camera("192.168.0.234", "admin", "sterlingarcher")
-#    c4 = Camera("192.168.0.234", "admin", "sterlingarcher")
-#    c5 = Camera("192.168.0.234", "admin", "sterlingarcher")
-#    c6 = Camera("192.168.0.234", "admin", "sterlingarcher")
+    #need a class so the object can hold the callback function
+    class callWrapper:
+        def __init__(self, id)
+            self.id = id
 
-    # stream in this case is a generator returning an image (in mat format)
-    stream1 = c1.open_video_stream()
-#    stream2 = c2.open_video_stream()
-#    stream3 = c3.open_video_stream()
-#    stream4 = c4.open_video_stream()
-#    stream5 = c5.open_video_stream()
-#    stream6 = c6.open_video_stream()
+        def inner_callback(self, img):
+            nonlocal camImg, frameCount
+            frameCount[self.id] += 1
+            camImg[self.id] = img
 
-    #populate the TimeOuts as they are identified
-    #populated with TimeOuts["Camera1"]["Person"] = LastTimeSeen
-    TimeOuts = {"1":{"jersey" : time.time()+5}}
-    
-    
-    # or using a for loop
-    count = 0
-    targets = ["jersey", "screwdriver"]
-#    for img in zip(stream1,stream2,stream3,stream4,stream5,stream6):
-#       
-     
-#    for img1,img2,img3,img4,img5,img6 in zip(stream1,stream2,stream3,stream4,stream5,stream6):
-    for img1 in stream1:
-        count += 1
-#        cv2.imshow("name", maintain_aspect_ratio_resize(img, width=600))
+    t = []
+    c = []
+    bgsub = []
+    for count, ip in enumerate(IPList):
+        c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
+        ic = callWrapper(count)
+        t.append(c[count].open_video_stream(callback=ic.inner_callback))
+        bgsub.append(cv2.createBackgroundSubtractorMOG2())
 
-#        img1 = cv2.resize(img1, (448,448))
-#        cv2.imshow("name", img1)
-       
+    TimeOuts = {}
+    for i in range(num):
+        TimeOuts[str(i+1)] = {}
+
+    targets = ["person", "cat", "dog", "cake"]
+    thresh = {}
+    for target in targets:
+        thresh[target] = 0.75
+
+    lastFrame = [0]*num
+
+#    net = get_model("nanodet", target_size=320, nms_threshold=0.5, use_gpu=False)
+    #this is slower than nanodet but necessary if we are going to be using night vision images
+    net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
+
+    while True:
+        for count, curT in enumerate(t):
+             if not curT.is_alive():
+                 print("Attempting to reboot camera", str(count+1))
+                 ip = IPList[count]
+                 c[count] = Camera(ip[0], ip[1], ip[2], profile="sub")
+                 ic = callWrapper(count)
+                 t[count] = c[count].open_video_stream(callback=ic.inner_callback)
+
         #remove expired TimeOuts
         ClearTimeouts(TimeOuts)
-        
-        if count%2 == 0:
-          print(img1.shape)
-          img1 = cv2.resize(img1, (448,448))
-          img2 = img1
-#          img3 = cv2.resize(img3, (448,448))
-#          img4 = cv2.resize(img4, (448,448))
-#          img5 = cv2.resize(img5, (448,448))
-#          img6 = cv2.resize(img6, (448,448))
-          imgTest = np.array([img1[112:336,112:336],
-                            img2[112:336,112:336]])
- #                           img3[112:336,112:336],
- #                           img4[112:336,112:336],
- #                           img5[112:336,112:336],
- #                           img6[112:336,112:336]])
-          predictions = mobile.predict(imgTest)
-          results = imagenet_utils.decode_predictions(predictions)
-          
-          #focus only on camera1
-          
-          FrontDoorMotionDetected = False
-          for count, imgResult in enumerate(results):
-            #top result only right now
-            for r in imgResult[:1]:
-              print(r[0], r[1], r[2])
-              for target in targets:
-                if not IsInTimeOut(TimeOuts, count, target) and r[1] == target and r[2] > 0.7:
-                  cam = str(count+1)
-                  telegram_send.send(messages=["Person detected on Camera #" + cam])
-                  if cam not in TimeOuts.keys():
-                    TimeOuts[cam] = {}
-                  TimeOuts[cam][target] = time.time()+30
 
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            cv2.destroyAllWindows()
-            exit(1)
+        indexesToCheck = []
+        for i in range(num):
+            if frameCount[i] != lastFrame[i]:
+                indexesToCheck.append(i)
+                lastFrame[i] = frameCount[i]
 
+        if len(indexesToCheck) == 0:
+            time.sleep(0.001)
+            continue
 
-# Resizes a image and maintains aspect ratio
-def maintain_aspect_ratio_resize(image, width=None, height=None, inter=cv2.INTER_AREA):
-    # Grab the image size and initialize dimensions
-    dim = None
-    (h, w) = image.shape[:2]
+        #for every updated image
+        for index in indexesToCheck:
+            #grab and check background subtraction for motion
+            curImage = camImg[index]
+            resized = cv2.resize(curImage[50:-50, 50:-50], (curImage.shape[0]//2, curImage.shape[1]//2))
+            mask = bgsub[index].apply(resized)
 
-    # Return original image if no need to resize
-    if width is None and height is None:
-        return image
+            #this could be tune-able
+            if np.count_nonzero(mask) > MinimumBackgroundDiff:
+                objects = net(curImage)
+                for o in objects:
+                    if "class_names" in dir(net) and "label" in dir(o):
+                        for target in targets:
+                            if net.class_names[int(o.label)] == target and o.prob > thresh[target]:
+                                 if IsInTimeOut(TimeOuts, index, target):
+                                     print("Camera", index+1, "found", target, "but is in timeout")
+                                     continue
 
-    # We are resizing height if width is none
-    if width is None:
-        # Calculate the ratio of the height and construct the dimensions
-        r = height / float(h)
-        dim = (int(w * r), height)
-    # We are resizing width if height is none
-    else:
-        # Calculate the ratio of the 0idth and construct the dimensions
-        r = width / float(w)
-        dim = (width, int(h * r))
+                                 telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
 
-    # Return the resized image
-    return cv2.resize(image, dim, interpolation=inter)
+                                 if pictureMode:
+                                     #draw rectangle
+                                     cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int>
+                                     #prep image
+                                     is_success, im_buf_arr = cv2.imencode(".png", curImage)
+                                     byte_im = im_buf_arr.tobytes()
+                                     #send image
+                                     telegram.send_photo(groupID, photo=byte_im)
+                                     #add timeout
+                                     TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
 
-
-# Call the methods. Either Blocking (using generator) or Non-Blocking using threads
-# non_blocking()
-blocking()
+def non_blocking_single(IP, user, password):
+    non_blocking([[IP, user, password]])
