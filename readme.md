@@ -46,7 +46,7 @@ The third filter is the minimum object size.  This is a parameter that can be tu
 
 ## How secure is it?
 
-The whole point of this project is data privacy so it better be secure.  Since everything is hard wired we are protected from wifi sniffing.  The cameras have a built in admin account with no password so that will need to be changed during the setup detailed below.  The raspberry pi will be password protected but it starts with a known username and password, I also encourage updating the admin password or using a different username/password.  The end to end encryption of the messages/images being sent out is highly secure.  The most insecure part of this process is the setup.conf file that needs to be user made during the setup process.  
+The whole point of this project is data privacy so it better be secure.  Since everything is hard wired we are protected from wifi sniffing.  The cameras have a built in admin account with no password so that will need to be changed during the setup detailed below.  The raspberry pi will be password protected but it starts with a known username and password, I also encourage updating the admin password and using a different username/password.  The end to end encryption of the messages/images being sent out is highly secure.  The most insecure part of this process is the setup.conf file that needs to be user made during the setup process.  
 
 There are ways to properly encrypt this file but I am not a security expert so I am open to suggestions.  I know if I attempt to do this myself I will break some protocol and it won't actually be secure.
 
