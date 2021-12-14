@@ -1,4 +1,4 @@
 ncnn >= 1.0.20211116
-opencv-python >= 4.5.4.58
 pyTelegramBotAPI == 4.2.0
 reolinkapi == 0.1.3
+reolinkapi[streaming]
