@@ -8,7 +8,7 @@ The end result will be notifications on your phone that looks like this:
 
 ## Summary 
 
-This is a privacy focused attempt at building a Ring/Arlo replacement using higher quality, less expensive cameras and a raspberry pi to monitor for motion and object detection.  The goal is to provide faster response times without compromising any data or allowing any company to profit off of your feed or data.
+This is a privacy focused attempt at building a Ring/Arlo replacement using higher quality, less expensive cameras and a raspberry pi to monitor for motion and object detection.  The goal is to provide faster response times without compromising any data or allowing any company to profit off of your feed.
 
 ## Why do this?
 
