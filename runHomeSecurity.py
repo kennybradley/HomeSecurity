@@ -28,7 +28,7 @@ def IsInTimeOut(TimeOuts, cameraNum, label):
 
 
 #adding profile to Camera, and RTSP client allows us to use the 640x480 stream as input
-def non_blocking(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumObjectSize, targets):
+def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumObjectSize, targets):
     #populate main variables
     num = len(IPList)
     camImg = [None]*num
@@ -159,4 +159,4 @@ Targets = prepArray(Targets)
 for IP, user, password in zip(IPAddresses, Usernames, Passwords):
     IPList.append([IP, user, password])
 
-non_blocking(IPList, pictureMode, int(TimeoutLength), int(MotionSensitivity), int(MinimumObjectSize), Targets)
+runMainLoop(IPList, pictureMode, int(TimeoutLength), int(MotionSensitivity), int(MinimumObjectSize), Targets)
