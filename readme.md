@@ -163,6 +163,7 @@ We need to write out the token and the group chat ID.  Change directories to the
 Update the setup.conf file with the token and group ID.  Open up using gedit by gui or nano/vi/emacs by command line.
 
 Add the token so that it looks like TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789
+
 Add the group ID so that it looks like GROUP_ID=CHARACTERS_HERE
 
 # Get the camera IP addresses
@@ -181,6 +182,7 @@ Insert the IP address into a web browser and you'll be given a landing page to l
 ![](images/Landing.jpg)
 
 The default username is: admin
+
 The default password is empty so leave it blank. 
 
 ![](images/CameraSetup1.jpg)
