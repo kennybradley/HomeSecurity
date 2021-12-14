@@ -140,11 +140,11 @@ Being able to send messages is good but sending requires a group ID.
 
 Login on [the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to verify with your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
 
+At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
+
 ![](images/Setup0.jpg)
 
 ![](images/Setup1.jpg)
-
-At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
 
 ![](images/Setup2.jpg)
 
