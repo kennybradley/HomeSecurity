@@ -179,7 +179,7 @@ After you log in click on the gear in the top right.
 
 Then on the left side click on System then User Management.  This will allow you to insert a new password. If you choose to add a new username remember to also reset the password of the admin login.  You don't want to leave that blank.
 
-![](images/CameraSetup1.jpg)
+![](images/CameraSetup3.jpg)
 
 Update the section of the setup.conf from 
 ```
@@ -236,8 +236,10 @@ Then hit control+b followed by d.  This will leave the program running on the pi
 # Additional functionality to add
 
 FTP
-  suggested block size 50 MB
-  management
+
+suggested block size 50 MB
+  management of data
+
 port forwarding for external viewing
 
 
