@@ -20,7 +20,7 @@ There are also security issues with police/federal agencies getting access to Ri
 
 The response rate is dependent on how many cameras there are attached, but with fewer than 8 cameras the notifications come in significantly faster than when I was using Ring.  With 4 cameras, text notifications come in after about 500ms and images are delivered in under 2 seconds (this will be dependent on your data connection though).
 
-The setup is cheaper though it requires some setup.  Ring has bundles with 4 cameras for $400 + tax plus a subscription of $100 a year.  Arlo has options that run from $600 to $1000 + tax plus a subscription of $10 a month.  My entire setup cost $291 + tax, no subscriptions. 
+The setup is cheaper though it requires some setup.  Ring has bundles with 4 cameras for $400 + tax plus a subscription of $100 a year.  Arlo has options that run from $600 to $1000 + tax plus a subscription of $10 a month.  My entire setup cost $291 + tax, most of the features you pay the subscription for are possible to do locally with a little more work. 
 
 * Reolink cameras (often on sale for $40)
 * Raspberry pi 4 (any version, RAM isn't an issue) starts at $35
@@ -162,6 +162,8 @@ I can't help too much with this part since each router is set up differently.  Y
 
 Grab those IP addresses, you're going to need to log into each camera to set up passwords.
 
+You will also need to go into the router settings and set the camera to have a static IP address.  This means that your router will make sure that the cameras keep the same address so you don't get disconnected from the camera after days/weeks.  
+
 ## Configuring the cameras
 
 Insert the IP address into a web browser and you'll be given a landing page to log into the camera.  
@@ -233,13 +235,18 @@ python runHomeSecurity.py
 ```
 Then hit control+b followed by d.  This will leave the program running on the pi and allow you to exit the terminal 
 
-# Additional functionality to add
+# Additional functionality to compete with subscriptions
 
-FTP
+* Set up an FTP server for recording.  In the menu for the cameras you can record to a ftp server in low or high quality.
+  * For the fluent/low quality images a block size of 75 MB puts the recording around an hour.
+  * This can be done on the raspberry pi with an external hard drive, Seagate and Western Digital often have 4 TB drives for $100 or less. 
+  * For my case, 4 cameras on low quality (fluent) mode it records just over 7 GB per day, but at full resolution (clear) mode it would record 250+GB per day
+  * Permanent recording for 4 camears at full quality on a 4TB hard drive would only last around 15-16 days before old data needed to be overwritten.
+  * On low quality mode that 4 TB drive would last well over 500 days.
+  * I wrote a script that runs once per day and checks if the size of the recorded data is over a limit and deletes the oldest recording.
+  * To set up a raspberry pi server [this is a good tutorial](https://medium.com/kunalrdeshmukh/ftp-server-with-raspberry-pi-and-hdd-3c10ce95f2d4), you can start at "Step 5: Mount HDD" even though its actually step 3.
 
-suggested block size 50 MB
-  management of data
-
-port forwarding for external viewing
-
-
+* Port forwarding for external viewing
+  * This tells your router that incoming requests from a certain port are designed to go to certain cameras.  
+  * The normal port for rtsp video streaming is 554.  So pick another port and assign a port forwarding entry for a particular camera's IP from that port to 554.
+  * Then you can set up a remote viewing app that allows rtsp.  On mobile tinyCam is popular, and on desktop you can use VLC.  All you need to do is set up the port and connect to your home IP using that port and your camera's username and password. 
