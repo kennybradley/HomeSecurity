@@ -69,7 +69,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     #   into an array parameter so we can have a different value for each camera
     thresh = {}
     for target in targets:
-        thresh[target] = 0.75
+        thresh[target] = 0.5
 
     lastFrame = [0]*num
 
@@ -116,40 +116,42 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
             resized = cv2.resize(curImage[50:-50, 50:-50], (curImage.shape[0]//2, curImage.shape[1]//2))
             mask = bgsub[index].apply(resized)
 
+            print(np.count_nonzero(mask))
             #this could be tune-able
             if np.count_nonzero(mask) > MotionSensitivity:
                 objects = net(curImage)
                 #for each detected object
                 for o in objects:
                     if "class_names" in dir(net) and "label" in dir(o):
+                        print(net.class_names[int(o.label)], o.prob)
                         #for each of the desired targets
                         for target in targets:
                             #check to see if they match the object and are above the detection threshold
                             if net.class_names[int(o.label)] == target and o.prob > thresh[target]:
                                 #if the camera is in timeout there is no need to report anything
                                 if IsInTimeOut(TimeOuts, index, target):
-                                     print("Camera", index+1, "found", target, "but is in timeout")
-                                     continue
+                                    print("Camera", index+1, "found", target, "but is in timeout")
+                                    continue
 
                                  #if the object is too small don't bother reporting
-                                 if o.rect.w*o.rect.h < MinimumObjectSize:
-                                     print("Camera", index+1, "found", target, "but is too small")
-                                     continue
+                                if o.rect.w*o.rect.h < MinimumObjectSize:
+                                    print("Camera", index+1, "found", target, "but is too small")
+                                    continue
 
                                  #this is a new detection of an object, report it through telegram
-                                 telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
+                                telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
 
-                                 #if we are reporting pictures, send the picture
-                                 if pictureMode:
-                                     #draw rectangle
-                                     cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)))
-                                     #prep image
-                                     is_success, im_buf_arr = cv2.imencode(".png", curImage)
-                                     byte_im = im_buf_arr.tobytes()
-                                     #send image
-                                     telegram.send_photo(groupID, photo=byte_im)
-                                     #add timeout
-                                     TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
+                                #if we are reporting pictures, send the picture
+                                if pictureMode:
+                                    #draw rectangle
+                                    cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)), [0,0,255], 3)
+                                    #prep image
+                                    is_success, im_buf_arr = cv2.imencode(".png", curImage)
+                                    byte_im = im_buf_arr.tobytes()
+                                    #send image
+                                    telegram.send_photo(groupID, photo=byte_im)
+                                    #add timeout
+                                    TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
 
 #end of runMainLoop
 
