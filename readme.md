@@ -39,7 +39,7 @@ Since the raspberry pi will be processing several frames per second from every c
 
 The first filter is on the motion detection, there is a sensitivity parameter that measures how much of the image is different from the expected (no objects detected) state.  The lower the threshold on this filter the more sensitive it is.  A value of 1 means that if 1 pixel is different from the expected background data the image will be reported as motion detected, even an empty/static scene can give results as high as 150 so a threshold below that will be very sensitive.  A value of 2000 is the default which means that close to 3% of the image has changed in some obvious way.  Depending on the location of the camera it could make sense to increase this as high as 10000 if you did not want the camera to be very sensitive.
 
-The second filter is the timeout system.  If an object has been detected by a camera we do not want to report it on every subsequent frame.  The default vaule is 15 seconds of timeout where that camera is not allowed to report the same type of object.  After the timeout is completed the camera can report again.
+The second filter is the timeout system.  If an object has been detected by a camera we do not want to report it on every subsequent frame.  The default value is 15 seconds of timeout where that camera is not allowed to report the same type of object.  After the timeout is completed the camera can report again.
 
 The third filter is the minimum object size.  This is a parameter that can be tuned that gives a minimum size for an object to be reported to the group.  If the camera is oriented in a way that would allow for distant objects to be detected this will cut down on unwanted notifications.
 
