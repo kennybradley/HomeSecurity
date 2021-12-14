@@ -6,8 +6,7 @@ from reolinkapi import Camera
 from ncnn.model_zoo import get_model
 import configparser
 
-
-
+#clear any timeout specified for a time that has already passed
 def ClearTimeouts(TimeOuts):
   for key, data in TimeOuts.items():
     toRemove = []
@@ -18,6 +17,7 @@ def ClearTimeouts(TimeOuts):
       print("\n\nTimeout on Camera",key,"for",r," cleared\n\n")
       TimeOuts[key].pop(r)
 
+#check to see if the given label for the given camera is current in timeout
 def IsInTimeOut(TimeOuts, cameraNum, label):
   for key, data in TimeOuts.items():
     if str(cameraNum+1) == key:
@@ -27,65 +27,84 @@ def IsInTimeOut(TimeOuts, cameraNum, label):
   return False
 
 
-#adding profile to Camera, and RTSP client allows us to use the 640x480 stream as input
+#this is the main processing loop for the image detection pipeline
 def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumObjectSize, targets):
-    #populate main variables
+    #populate local variables that hold the image Array and current frame counts
     num = len(IPList)
     camImg = [None]*num
     frameCount = [0]*num
 
-    #need a class so the object can hold the callback function
+    #Need a class so the object can hold the callback function
+    #We need the callback function to pass into the video stream
     class callWrapper:
+        #set the camera ID
         def __init__(self, id):
             self.id = id
 
+        #update the nonlocal image array and frame count
         def inner_callback(self, img):
             nonlocal camImg, frameCount
             frameCount[self.id] += 1
             camImg[self.id] = img
 
+
+    #arrays containing the stream, the camera object and the background substraction
+    #each of these will be indexed by the camera number
     t = []
     c = []
     bgsub = []
     for count, ip in enumerate(IPList):
-        print(ip)
         c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
         ic = callWrapper(count)
         t.append(c[count].open_video_stream(callback=ic.inner_callback))
         bgsub.append(cv2.createBackgroundSubtractorMOG2())
 
+    #Establish the map holding the timeout data
+    #make an entry for each camera
     TimeOuts = {}
     for i in range(num):
         TimeOuts[str(i+1)] = {}
 
+    #the thresholds for the targets may need some adjustment or be broken up
+    #   into an array parameter so we can have a different value for each camera
     thresh = {}
     for target in targets:
         thresh[target] = 0.75
 
     lastFrame = [0]*num
 
+    #nanodet is a faster model and could reasonably work for 16 cameras but it doesn't work
+    #    well with black and white frames which is what we get at night from the IR 
 #    net = get_model("nanodet", target_size=320, nms_threshold=0.5, use_gpu=False)
     #this is slower than nanodet but necessary if we are going to be using night vision images
     net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
 
+    #main loop
     while True:
+        #if any of the cameras have disconnected, attempt to reconnect
         for count, curT in enumerate(t):
              if not curT.is_alive():
+                 #this techincally works but is very wasteful since this is happening every loop 
+                 #if the camera is actually down this will waste a lot of time
                  print("Attempting to reboot camera", str(count+1))
                  ip = IPList[count]
                  c[count] = Camera(ip[0], ip[1], ip[2], profile="sub")
                  ic = callWrapper(count)
                  t[count] = c[count].open_video_stream(callback=ic.inner_callback)
 
-        #remove expired TimeOuts
+        #remove any expired TimeOuts
         ClearTimeouts(TimeOuts)
 
+        #check which images have updated
         indexesToCheck = []
         for i in range(num):
             if frameCount[i] != lastFrame[i]:
                 indexesToCheck.append(i)
                 lastFrame[i] = frameCount[i]
 
+        #if no images have updated, wait for 1ms and check again
+        #   adding this decreased the CPU required by a lot
+        #   remove the busy wait aspect of this program
         if len(indexesToCheck) == 0:
             time.sleep(0.001)
             continue
@@ -100,20 +119,27 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
             #this could be tune-able
             if np.count_nonzero(mask) > MotionSensitivity:
                 objects = net(curImage)
+                #for each detected object
                 for o in objects:
                     if "class_names" in dir(net) and "label" in dir(o):
+                        #for each of the desired targets
                         for target in targets:
+                            #check to see if they match the object and are above the detection threshold
                             if net.class_names[int(o.label)] == target and o.prob > thresh[target]:
-                                 if IsInTimeOut(TimeOuts, index, target):
+                                #if the camera is in timeout there is no need to report anything
+                                if IsInTimeOut(TimeOuts, index, target):
                                      print("Camera", index+1, "found", target, "but is in timeout")
                                      continue
 
+                                 #if the object is too small don't bother reporting
                                  if o.rect.w*o.rect.h < MinimumObjectSize:
                                      print("Camera", index+1, "found", target, "but is too small")
                                      continue
 
+                                 #this is a new detection of an object, report it through telegram
                                  telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
 
+                                 #if we are reporting pictures, send the picture
                                  if pictureMode:
                                      #draw rectangle
                                      cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)))
@@ -125,11 +151,12 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                      #add timeout
                                      TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
 
+#end of runMainLoop
 
 
-
+#read setup.conf and prep the data so it can be passed into runMainLoop
 parser = configparser.ConfigParser()
-parser.read("setupReal.conf")
+parser.read("setup.conf")
 token = parser.get("setup","TOKEN")
 groupID = parser.get("setup","GROUP_ID")
 IPAddresses = parser.get("setup", "IP_ADDRESS")
@@ -144,6 +171,7 @@ pictureMode = parser.get("params", "SendPictures")
 Targets = parser.get("params", "Targets")
 IPList=[]
 
+#Need to clean the data in case the user added quotes or spaces
 def prepArray(inArray):
     Outarray = []
     for ip in inArray[1:-1].split(","):
