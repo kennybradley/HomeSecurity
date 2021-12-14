@@ -3,7 +3,8 @@
 This is a project that uses IP cameras, local computing and the encrypted messaging to monitor a location and get notifications on your phone or desktop with without sending any usable data to outside companies.
 
 The end result will be notifications on your phone that looks like this:
-![](Example.png)
+
+![](images/Example.png)
 
 No snooping, no Ring/Amazon subscriptions, no Arlo, no data privacy issues, just fast notifications for you and the people you approve can view these messages/images. 
 
@@ -84,9 +85,13 @@ Being able to send messages is good but sending requires a group ID.
 
 Login on [the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to verify with your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
 
+![](images/Setup1.jpg)
+
+![](images/Setup2.jpg)
+
 At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
 
-![](images/Setup1.jpg)
+![](images/Setup3.jpg)
 
 Click on the group chat and the URL bar should look like this: https://web.telegram.org/z/#CHARCTERS_HERE
 
@@ -117,15 +122,15 @@ Insert the IP address into a web browser and you'll be given a landing page to l
 The default username is: admin
 The default password is empty so leave it blank. 
 
-![](images/Setup1.jpg)
+![](images/CameraSetup1.jpg)
 
 After you log in click on the gear in the top right.
 
-![](images/Setup2.jpg)
+![](images/CameraSetup2.jpg)
 
 Then on the left side click on System then User Management.  This will allow you to insert a new password. If you choose to add a new username remember to also reset the password of the admin login.  You don't want to leave that blank.
 
-![](images/Setup3.jpg)
+![](images/CameraSetup1.jpg)
 
 Update the section of the setup.conf from 
 ```
