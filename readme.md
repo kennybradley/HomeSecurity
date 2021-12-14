@@ -85,6 +85,7 @@ Being able to send messages is good but sending requires a group ID.
 Login on [the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to verify with your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
 
 At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
+
 ![](images/Setup1.jpg)
 
 Click on the group chat and the URL bar should look like this: https://web.telegram.org/z/#CHARCTERS_HERE
@@ -110,12 +111,14 @@ Grab those IP addresses, you're going to need to log into each camera to set up 
 ## Configuring the cameras
 
 Insert the IP address into a web browser and you'll be given a landing page to log into the camera.  
+
 ![](images/Landing.jpg)
 
 The default username is: admin
 The default password is empty so leave it blank. 
 
 ![](images/Setup1.jpg)
+
 After you log in click on the gear in the top right.
 
 ![](images/Setup2.jpg)
