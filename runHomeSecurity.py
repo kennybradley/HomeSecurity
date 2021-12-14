@@ -4,14 +4,6 @@ import cv2
 import telebot
 from reolinkapi import Camera
 from ncnn.model_zoo import get_model
-
-#hardware:
-#RLC 410 5MP    $40 x4
-#netgear PoE switch     $50
-#300 foot reel          $36
-#cat 5 end caps         $10
-#raspberry pi 4. 4GB    $65
-
 import configparser
 
 
