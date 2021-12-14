@@ -4,7 +4,7 @@ This is a project that uses IP cameras, local computing and the encrypted messag
 
 The end result will be notifications on your phone that looks like this:
 
-![](images/Example.png)
+![](images/Example.jpg)
 
 No snooping, no Ring/Amazon subscriptions, no Arlo, no data privacy issues, just fast notifications for you and the people you approve can view these messages/images. 
 
@@ -85,13 +85,13 @@ Being able to send messages is good but sending requires a group ID.
 
 Login on [the web based telegram site](https://web.telegram.org/), it MUST be the web based site.  This will ask you to verify with your phone, go into the telegram app settings, then devices, and click on Link Desktop Device.
 
-![](images/Setup1.jpg)
+![](images/Setup0.jpg)
 
-![](images/Setup2.jpg)
+![](images/Setup1.jpg)
 
 At the bottom click on the pencil then New Group Chat.  Add your UniqueNameOfNotification_bot and add whoever you want to be receiving notifications.
 
-![](images/Setup3.jpg)
+![](images/Setup2.jpg)
 
 Click on the group chat and the URL bar should look like this: https://web.telegram.org/z/#CHARCTERS_HERE
 
