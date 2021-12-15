@@ -29,6 +29,13 @@ The setup is cheaper though it requires some setup.  Ring has bundles with 4 cam
 * Networking cables (varies on length/number of cameras, mine cost $36, $5 for caps, I borrowed a cat5 crimper)
 * Mini hdmi connector to monitor ($5)
 
+This can also be performed by any system that can run python, which means a desktop, server or other embedded device will work.  The specific choice of network as well as parameters for functions was designed to be optimized on the raspberry pi.  But there is no reason it can't be performed on a windows PC if you wanted to.
+
+## Current Known Problems 
+
+* The reolink software is not optimized or designed for a large number of open connections. If for some reason you run the script several times trying to tweak parameters or change networks you may get into a situation where the camera starts throwing bad data in the stream.  This happened to me a couple of times when testing and the solution is to log into the camera's web portal using the IP address, then go into Settings (the gear), System, More, Reboot.  After the camera reboots it will stop sending out bad frames.
+
+
 ## How does it work?
 
 This project relies on three main pieces of open source code.  The first is the reolinkapi which is [available here](https://github.com/ReolinkCameraAPI/reolinkapipy).  This allows us to monitor the rtsp stream within python and analyze the frames from our cameras. The second is [OpenCV](https://github.com/opencv/opencv) which is used for computer vision, in our case to serve as a motion detector using background subtraction.  Third is [ncnn](https://github.com/Tencent/ncnn) which is a neural network framework built by Tencent which is being used to perform object recognition on the images that are passed in.
