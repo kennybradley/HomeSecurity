@@ -69,7 +69,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     #   into an array parameter so we can have a different value for each camera
     thresh = {}
     for target in targets:
-        thresh[target] = 0.5
+        thresh[target] = 0.8
 
     lastFrame = [0]*num
 
@@ -79,18 +79,21 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     #this is slower than nanodet but necessary if we are going to be using night vision images
     net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
 
+    reconnectTimeout = 15
+    reconnect = [0]*num
     #main loop
     while True:
         #if any of the cameras have disconnected, attempt to reconnect
         for count, curT in enumerate(t):
-             if not curT.is_alive():
-                 #this techincally works but is very wasteful since this is happening every loop 
+             if not curT.is_alive() and time.time() > reconnect[count]:
+                 #this techincally works but is very wasteful since this is happening every loop
                  #if the camera is actually down this will waste a lot of time
                  print("Attempting to reboot camera", str(count+1))
                  ip = IPList[count]
                  c[count] = Camera(ip[0], ip[1], ip[2], profile="sub")
                  ic = callWrapper(count)
                  t[count] = c[count].open_video_stream(callback=ic.inner_callback)
+                 reconnect[count] = time.time() + reconnectTimeout
 
         #remove any expired TimeOuts
         ClearTimeouts(TimeOuts)
@@ -116,9 +119,9 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
             resized = cv2.resize(curImage[50:-50, 50:-50], (curImage.shape[0]//2, curImage.shape[1]//2))
             mask = bgsub[index].apply(resized)
 
-            print(np.count_nonzero(mask))
             #this could be tune-able
             if np.count_nonzero(mask) > MotionSensitivity:
+                #ignore the borders
                 objects = net(curImage)
                 #for each detected object
                 for o in objects:
@@ -144,7 +147,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                 #if we are reporting pictures, send the picture
                                 if pictureMode:
                                     #draw rectangle
-                                    cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)), [0,0,255], 3)
+                                    cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)), [255,0,0], 3)
                                     #prep image
                                     is_success, im_buf_arr = cv2.imencode(".png", curImage)
                                     byte_im = im_buf_arr.tobytes()
