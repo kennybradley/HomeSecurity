@@ -269,3 +269,5 @@ Then hit control+b followed by d.  This will leave the program running on the pi
   * This tells your router that incoming requests from a certain port are designed to go to certain cameras.  
   * The normal port for rtsp video streaming is 554.  So pick another port and assign a port forwarding entry for a particular camera's IP from that port to 554.
   * Then you can set up a remote viewing app that allows rtsp.  On mobile tinyCam is popular, and on desktop you can use VLC.  All you need to do is set up the port and connect to your home IP using that port and your camera's username and password. 
+
+If you are running several cameras with the ftp server on the raspberry pi it would probably be best to not use the version with 1GB of memory.
