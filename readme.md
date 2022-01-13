@@ -264,6 +264,8 @@ Then hit control+b followed by d.  This will leave the program running on the pi
   * On low quality mode that 4 TB drive would last well over 500 days.
   * I wrote a script that runs once per day and checks if the size of the recorded data is over a limit and deletes the oldest recording.
   * To set up a raspberry pi server [this is a good tutorial](https://medium.com/kunalrdeshmukh/ftp-server-with-raspberry-pi-and-hdd-3c10ce95f2d4), you can start at "Step 5: Mount HDD" even though its actually step 3.
+  * Getting the cameras to record continuously requires using the reolink mobile app because the timer option does not exist in the web based menu.
+    * Set the "Timer" to be active from 0 to 2400 on all days if you want continuous recording. 
 
 * Port forwarding for external viewing
   * This tells your router that incoming requests from a certain port are designed to go to certain cameras.  
