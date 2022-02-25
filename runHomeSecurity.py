@@ -5,6 +5,8 @@ import telebot
 from reolinkapi import Camera
 from ncnn.model_zoo import get_model
 import configparser
+import datetime
+import pytz
 
 #clear any timeout specified for a time that has already passed
 def ClearTimeouts(TimeOuts):
@@ -26,6 +28,12 @@ def IsInTimeOut(TimeOuts, cameraNum, label):
           return True
   return False
 
+#Allow for a dummy class that returns false on is_alive
+#in case the script gets stalled, this will allow it to reboot
+class Dummy:
+    def is_alive():
+      print(time.time(), " forcing a reconnection")
+      return False
 
 #this is the main processing loop for the image detection pipeline
 def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumObjectSize, targets):
@@ -44,6 +52,9 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         #update the nonlocal image array and frame count
         def inner_callback(self, img):
             nonlocal camImg, frameCount
+            if img is None:
+                print("No image found")
+                return
             frameCount[self.id] += 1
             camImg[self.id] = img
 
@@ -57,7 +68,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
         ic = callWrapper(count)
         t.append(c[count].open_video_stream(callback=ic.inner_callback))
-        bgsub.append(cv2.createBackgroundSubtractorMOG2())
+        bgsub.append(cv2.bgsegm.createBackgroundSubtractorMOG())#CNT())# MOG())
 
     #Establish the map holding the timeout data
     #make an entry for each camera
@@ -74,20 +85,24 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     lastFrame = [0]*num
 
     #nanodet is a faster model and could reasonably work for 16 cameras but it doesn't work
-    #    well with black and white frames which is what we get at night from the IR 
+    # well with black and white frames which is what we get at night from the IR
 #    net = get_model("nanodet", target_size=320, nms_threshold=0.5, use_gpu=False)
     #this is slower than nanodet but necessary if we are going to be using night vision images
     net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
 
     reconnectTimeout = 15
     reconnect = [0]*num
+
+    lastAttempt = time.time()
+    deadOn = False
+    
     #main loop
     while True:
         #if any of the cameras have disconnected, attempt to reconnect
         for count, curT in enumerate(t):
+             #if the connection is not alive and we aren't on a reconnect timeout
              if not curT.is_alive() and time.time() > reconnect[count]:
-                 #this techincally works but is very wasteful since this is happening every loop
-                 #if the camera is actually down this will waste a lot of time
+                 #reboot the camera by replacing the camera and stream objects
                  print("Attempting to reboot camera", str(count+1))
                  ip = IPList[count]
                  c[count] = Camera(ip[0], ip[1], ip[2], profile="sub")
@@ -105,29 +120,42 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                 indexesToCheck.append(i)
                 lastFrame[i] = frameCount[i]
 
-        #if no images have updated, wait for 1ms and check again
-        #   adding this decreased the CPU required by a lot
-        #   remove the busy wait aspect of this program
-        if len(indexesToCheck) == 0:
-            time.sleep(0.001)
+        #if it has been more than 100 seconds since a frame came in
+        #  assume that this is dead and force it to reconnect to the cameras
+        if len(indexesToCheck) == 0 and (time.time()-lastAttempt) > 100:
+            print("100 seconds since a frame was seen, reboot all camera feeds")
+            for curT in t:
+                #Dummy objects will return is_alive as false forcing a reconnect attempt
+                curT = Dummy()
             continue
+
+        #if no images have updated, wait for 25ms and check again
+        #   adding this decreased the CPU required by a lot
+        #With 4 cameras at 10 fps waiting 0.025s should be the minimum wait
+        if len(indexesToCheck) == 0:
+            time.sleep(0.025)
+            continue
+
+        lastAttempt = time.time()
 
         #for every updated image
         for index in indexesToCheck:
             #grab and check background subtraction for motion
             curImage = camImg[index]
+            #crop the borders and shrink the image for faster bgsub
             resized = cv2.resize(curImage[50:-50, 50:-50], (curImage.shape[0]//2, curImage.shape[1]//2))
             mask = bgsub[index].apply(resized)
 
-            #this could be tune-able
-            if np.count_nonzero(mask) > MotionSensitivity:
-                #ignore the borders
+            nonzero = np.count_nonzero(mask)
+            #motion sensitivity is tune-able
+            if nonzero > MotionSensitivity:
+                #if motion is high enough, do object detection
                 objects = net(curImage)
-                #for each detected object
+                #debugging information in case something goes wrong
+                print(index, nonzero, datetime.datetime.fromtimestamp(time.time(), pytz.timezone("America/Los_Angeles")))
+                #for each detected object check the scores against the target thresholds
                 for o in objects:
                     if "class_names" in dir(net) and "label" in dir(o):
-                        print(net.class_names[int(o.label)], o.prob)
-                        #for each of the desired targets
                         for target in targets:
                             #check to see if they match the object and are above the detection threshold
                             if net.class_names[int(o.label)] == target and o.prob > thresh[target]:
@@ -142,7 +170,10 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                     continue
 
                                  #this is a new detection of an object, report it through telegram
-                                telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
+                                try:
+                                    telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
+                                except Exception as e:
+                                    print("Error with telegram send_message")
 
                                 #if we are reporting pictures, send the picture
                                 if pictureMode:
@@ -152,10 +183,12 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                     is_success, im_buf_arr = cv2.imencode(".png", curImage)
                                     byte_im = im_buf_arr.tobytes()
                                     #send image
-                                    telegram.send_photo(groupID, photo=byte_im)
+                                    try:
+                                        telegram.send_photo(groupID, photo=byte_im)
+                                    except Exception as e:
+                                        telegram.send_message(groupID, "Error sending photo:" + e.message + e.args)
                                     #add timeout
                                     TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
-
 #end of runMainLoop
 
 
