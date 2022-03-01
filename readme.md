@@ -226,7 +226,7 @@ We set up the telegram-send and the bot, we generated a token, a group ID, and s
 Open the terminal and 
 ```
 cd /home/pi/security
-python runHomeSecurity.py
+python3 runHomeSecurity.py
 ```
 
 It should give a little bit of output saying that each of the cameras connected.  Feel free to disconnect the monitor cable and let it run.
@@ -250,7 +250,7 @@ Tmux will make a new screen that will persist even after you log out.
 The new screen:
 ```
 cd /home/pi/security
-python runHomeSecurity.py
+python3 runHomeSecurity.py
 ```
 Then hit control+b followed by d.  This will leave the program running on the pi and allow you to exit the terminal 
 
