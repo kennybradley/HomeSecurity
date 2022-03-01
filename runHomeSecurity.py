@@ -41,6 +41,9 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     num = len(IPList)
     camImg = [None]*num
     frameCount = [0]*num
+    
+    print("Starting HomeSecurity")
+    telegram.send_message(groupID, "Starting HomeSecurity")
 
     #Need a class so the object can hold the callback function
     #We need the callback function to pass into the video stream
@@ -95,6 +98,9 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
 
     lastAttempt = time.time()
     deadOn = False
+    
+    print("Running HomeSecurity")
+    telegram.send_message(groupID, "Running HomeSecurity")
     
     #main loop
     while True:
@@ -173,20 +179,20 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                 try:
                                     telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
                                 except Exception as e:
-                                    print("Error with telegram send_message")
+                                    print("Error with telegram send_message: " + e.description)
 
                                 #if we are reporting pictures, send the picture
                                 if pictureMode:
                                     #draw rectangle
                                     cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)), [255,0,0], 3)
                                     #prep image
-                                    is_success, im_buf_arr = cv2.imencode(".png", curImage)
+                                    is_success, im_buf_arr = cv2.imencode(".jpg", curImage)
                                     byte_im = im_buf_arr.tobytes()
                                     #send image
                                     try:
                                         telegram.send_photo(groupID, photo=byte_im)
                                     except Exception as e:
-                                        telegram.send_message(groupID, "Error sending photo:" + e.message + e.args)
+                                        telegram.send_message(groupID, "Error sending photo:" + e.description)
                                     #add timeout
                                     TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
 #end of runMainLoop
