@@ -1,3 +1,5 @@
+libopencv-dev 
+python3-opencv
 ncnn >= 1.0.20211116
 pyTelegramBotAPI == 4.2.0
 reolinkapi == 0.1.3
