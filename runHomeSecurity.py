@@ -173,7 +173,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                 try:
                                     telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
                                 except Exception as e:
-                                    print("Error with telegram send_message")
+                                    print("Error with telegram send_message", e.description)
 
                                 #if we are reporting pictures, send the picture
                                 if pictureMode:
@@ -186,7 +186,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
                                     try:
                                         telegram.send_photo(groupID, photo=byte_im)
                                     except Exception as e:
-                                        telegram.send_message(groupID, "Error sending photo:" + e.message + e.args)
+                                        telegram.send_message(groupID, "Error sending photo:" + e.description)
                                     #add timeout
                                     TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
 #end of runMainLoop
@@ -205,7 +205,7 @@ telegram = telebot.TeleBot(token)
 TimeoutLength = parser.get("params", "Timeout")
 MotionSensitivity = parser.get("params", "Sensitivity")
 MinimumObjectSize = parser.get("params", "MinimumSize")
-pictureMode = parser.get("params", "SendPictures")
+pictureMode = parser.getboolean("params", "SendPictures")
 Targets = parser.get("params", "Targets")
 IPList=[]
 
