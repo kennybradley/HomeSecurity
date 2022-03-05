@@ -105,6 +105,7 @@ On your raspberry pi, open a terminal window and run the following lines:
 ```
 sudo apt-get install python3
 sudo apt-get install git
+sudo apt-get install libopencv-dev python3-opencv
 git clone https://github.com/kennybradley/security.git
 cd security
 pip3 install -r requirements.txt
