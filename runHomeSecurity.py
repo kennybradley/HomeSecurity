@@ -124,9 +124,9 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         #  assume that this is dead and force it to reconnect to the cameras
         if len(indexesToCheck) == 0 and (time.time()-lastAttempt) > 100:
             print("100 seconds since a frame was seen, reboot all camera feeds")
-            for curT in t:
-                #Dummy objects will return is_alive as false forcing a reconnect attempt
-                curT = Dummy()
+            for curT in range(len(t)):
+                #Dummy objects will return is_alice as false forcing a reconnect attempt
+                t[curT] = Dummy()
             continue
 
         #if no images have updated, wait for 25ms and check again
