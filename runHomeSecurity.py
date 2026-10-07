@@ -41,14 +41,49 @@ class Dummy:
 class YOLO11NCNNWrapper:
     def __init__(self, model_folder="yolo11n_person_ncnn_model", class_names=None):
         import os
-        if not os.path.exists(model_folder):
-            if os.path.exists("yolo11n_ncnn_model"):
-                model_folder = "yolo11n_ncnn_model"
-            else:
-                print(f"'{model_folder}' not found. Downloading and exporting YOLO11n to NCNN...")
-                base_model = YOLO("yolo11n.pt")
-                model_folder = base_model.export(format="ncnn")
-        self.model = YOLO(model_folder, task="detect")
+        import numpy as np
+        import torch
+
+        def is_ncnn_compatible(folder):
+            param_path = os.path.join(folder, "model.ncnn.param")
+            if not os.path.exists(param_path):
+                return False
+            try:
+                with open(param_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if "MatMul" in content:
+                    print(f"Bypassing NCNN model '{folder}': contains unsupported 'MatMul' layer.")
+                    return False
+                return True
+            except Exception:
+                return False
+
+        self.model = None
+        # Attempt loading NCNN model folders if available and verified compatible
+        for target in [model_folder, "yolo11n_ncnn_model"]:
+            if os.path.exists(target) and is_ncnn_compatible(target):
+                try:
+                    candidate = YOLO(target, task="detect")
+                    dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+                    _ = candidate(dummy, imgsz=640, verbose=False)
+                    self.model = candidate
+                    print(f"Loaded NCNN FP16 model from '{target}'")
+                    break
+                except Exception as e:
+                    print(f"NCNN inference failed on '{target}' ({e}).")
+
+        if self.model is None:
+            print("Using optimized PyTorch INT8 model ('yolo11n.pt')...")
+            base_model = YOLO("yolo11n.pt")
+            try:
+                base_model.model = torch.quantization.quantize_dynamic(
+                    base_model.model, {torch.nn.Linear}, dtype=torch.qint8
+                )
+                print("Applied PyTorch dynamic INT8 quantization for CPU performance.")
+            except Exception as q_err:
+                print(f"Dynamic INT8 quantization skipped ({q_err}). Using standard PyTorch model.")
+            self.model = base_model
+
         self.class_names = class_names if class_names is not None else self.model.names
 
     def __call__(self, img):
@@ -93,12 +128,12 @@ def process_objects(objects, targets, thresh, MinimumObjectSize, TimeOuts, index
 
                 #if the camera is in timeout there is no need to report anything
                 if IsInTimeOut(TimeOuts, index, target):
-                    print("Camera", index+1, "found", target, "but is in timeout")
+                    print(f"Camera {index+1} found {target} (prob={o.prob:.2f}) but is in timeout", flush=True)
                     continue
 
                 #if the object is too small don't bother reporting
                 if o.rect.w*o.rect.h < MinimumObjectSize:
-                    print("Camera", index+1, "found", target, "but is too small")
+                    print(f"Camera {index+1} found {target} (prob={o.prob:.2f}) but object area ({int(o.rect.w*o.rect.h)} px) is smaller than minimum size ({MinimumObjectSize} px)", flush=True)
                     continue
 
                 send = True
@@ -107,32 +142,33 @@ def process_objects(objects, targets, thresh, MinimumObjectSize, TimeOuts, index
                     score = o.prob
                 if pictureMode:
                     # the coordinates are handled in the original coordinate space 
-                    print(o.label, o.prob, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)))
+                    print(f"[Detection Match] Camera {index+1}: {o.label} (prob={o.prob:.2f}) at ({int(o.rect.x)}, {int(o.rect.y)}) to ({int(o.rect.x + o.rect.w)}, {int(o.rect.y + o.rect.h)})", flush=True)
                     cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int((o.rect.x + o.rect.w)), int((o.rect.y + o.rect.h))), [0,0,255], 3)
 
     return send, found, score
 
 def sendAlert(curImage, groupID, found, index, score, TimeOuts, TimeoutLength):
+    print(f"[sendAlert] Sending alert to Telegram for Camera {index+1}: '{found}' (score={score:.3f})...", flush=True)
     #if we are reporting pictures, send the picture
     try:
         telegram.send_message(groupID, found  + " found on camera " + str(index+1) + " with prob " + str(score)[:5])
     except Exception as e:
-        print(f"[sendAlert] Failure sending text on Camera {index+1}: {type(e).__name__}: {e}")
+        print(f"[sendAlert] Failure sending text on Camera {index+1}: {type(e).__name__}: {e}", flush=True)
 
     if pictureMode:
         if curImage is None:
-            print(f"[sendAlert] Error on Camera {index+1}: curImage is None, cannot encode or send photo.")
+            print(f"[sendAlert] Error on Camera {index+1}: curImage is None, cannot encode or send photo.", flush=True)
             return
 
         #prep image
         is_success, im_buf_arr = cv2.imencode(".jpg", curImage, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         if not is_success or im_buf_arr is None:
             shape_info = curImage.shape if hasattr(curImage, "shape") else "unknown"
-            print(f"[sendAlert] Failed to encode image to JPG on Camera {index+1} (image shape: {shape_info})")
+            print(f"[sendAlert] Failed to encode image to JPG on Camera {index+1} (image shape: {shape_info})", flush=True)
             try:
                 telegram.send_message(groupID, f"Error encoding photo on camera {index+1}")
             except Exception as e:
-                print(f"[sendAlert] Failure sending encode error notification: {e}")
+                print(f"[sendAlert] Failure sending encode error notification: {e}", flush=True)
             return
 
         byte_im = im_buf_arr.tobytes()
@@ -142,7 +178,7 @@ def sendAlert(curImage, groupID, found, index, score, TimeOuts, TimeoutLength):
         try:
             telegram.send_photo(groupID, photo=byte_im)
             TimeOuts[str(index+1)][found] = time.time()+TimeoutLength
-            print(f"[sendAlert] Successfully sent photo for Camera {index+1} ({img_size_kb:.1f} KB)")
+            print(f"[sendAlert] Successfully sent photo for Camera {index+1} ({img_size_kb:.1f} KB)", flush=True)
         except Exception as e:
             error_details = str(e)
             if hasattr(e, "description") and e.description:
@@ -151,13 +187,13 @@ def sendAlert(curImage, groupID, found, index, score, TimeOuts, TimeoutLength):
                 error_details = str(e.result_json)
 
             shape_info = curImage.shape if hasattr(curImage, "shape") else "unknown"
-            print(f"[sendAlert] Error sending photo on Camera {index+1} ({img_size_kb:.1f} KB, shape: {shape_info}): {type(e).__name__}: {error_details}")
+            print(f"[sendAlert] Error sending photo on Camera {index+1} ({img_size_kb:.1f} KB, shape: {shape_info}): {type(e).__name__}: {error_details}", flush=True)
             traceback.print_exc()
 
             try:
                 telegram.send_message(groupID, f"Error sending photo on camera {index+1}: {error_details}")
             except Exception as e2:
-                print(f"[sendAlert] Message send failed when reporting photo error: {type(e2).__name__}: {e2}")
+                print(f"[sendAlert] Message send failed when reporting photo error: {type(e2).__name__}: {e2}", flush=True)
 
 #this is the main processing loop for the image detection pipeline
 def runMainLoop(IPList: list, 
@@ -197,8 +233,7 @@ def runMainLoop(IPList: list,
         c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
         ic = callWrapper(count)
         t.append(c[count].open_video_stream(callback=ic.inner_callback))
-        bgsub.append(cv2.bgsegm.createBackgroundSubtractorCNT(20,True,1000))# MOG())
-#        bgsub.append(cv2.bgsegm.createBackgroundSubtractorMOG())
+        bgsub.append(cv2.bgsegm.createBackgroundSubtractorCNT(20, True, 1000))
 
     #Establish the map holding the timeout data
     #make an entry for each camera
