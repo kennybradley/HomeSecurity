@@ -3,10 +3,13 @@ import time
 import cv2
 import telebot
 from reolinkapi import Camera
-from ncnn.model_zoo import get_model
 import configparser
 import datetime
 import pytz
+import random
+import traceback
+from ncnn.utils.objects import Detect_Object, Rect
+from ultralytics import YOLO
 
 #clear any timeout specified for a time that has already passed
 def ClearTimeouts(TimeOuts):
@@ -31,12 +34,138 @@ def IsInTimeOut(TimeOuts, cameraNum, label):
 #Allow for a dummy class that returns false on is_alive
 #in case the script gets stalled, this will allow it to reboot
 class Dummy:
-    def is_alive():
+    def is_alive(self):
       print(time.time(), " forcing a reconnection")
       return False
 
+class YOLO11NCNNWrapper:
+    def __init__(self, model_folder="yolo11n_person_ncnn_model", class_names=None):
+        import os
+        if not os.path.exists(model_folder):
+            if os.path.exists("yolo11n_ncnn_model"):
+                model_folder = "yolo11n_ncnn_model"
+            else:
+                print(f"'{model_folder}' not found. Downloading and exporting YOLO11n to NCNN...")
+                base_model = YOLO("yolo11n.pt")
+                model_folder = base_model.export(format="ncnn")
+        self.model = YOLO(model_folder, task="detect")
+        self.class_names = class_names if class_names is not None else self.model.names
+
+    def __call__(self, img):
+        results = self.model(img, imgsz=640, verbose=False)[0]
+        
+        objects = []
+        for box in results.boxes:
+            cls_id = int(box.cls[0].item())
+            prob = float(box.conf[0].item())
+            
+            x_center, y_center, w, h = box.xywh[0].tolist()
+            x = x_center - (w / 2.0)
+            y = y_center - (h / 2.0)
+            
+            if isinstance(self.class_names, dict):
+                label_name = self.class_names.get(cls_id, str(cls_id))
+            elif isinstance(self.class_names, (list, tuple)):
+                label_name = self.class_names[cls_id] if cls_id < len(self.class_names) else str(cls_id)
+            else:
+                label_name = str(cls_id)
+
+            obj = Detect_Object()
+            obj.label = label_name
+            obj.prob = prob
+            obj.rect = Rect(x, y, w, h)
+
+            objects.append(obj)
+            
+        return objects
+
+def process_objects(objects, targets, thresh, MinimumObjectSize, TimeOuts, index, curImage):
+    send = False
+    found = ""
+    score = 0
+    for o in objects:
+        if type(o) != Detect_Object:
+            continue
+
+        for target in targets:
+            #check to see if they match the object and are above the detection threshold
+            if o.label == target and o.prob > thresh[target]:
+
+                #if the camera is in timeout there is no need to report anything
+                if IsInTimeOut(TimeOuts, index, target):
+                    print("Camera", index+1, "found", target, "but is in timeout")
+                    continue
+
+                #if the object is too small don't bother reporting
+                if o.rect.w*o.rect.h < MinimumObjectSize:
+                    print("Camera", index+1, "found", target, "but is too small")
+                    continue
+
+                send = True
+                found = target
+                if o.prob > score:
+                    score = o.prob
+                if pictureMode:
+                    # the coordinates are handled in the original coordinate space 
+                    print(o.label, o.prob, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)))
+                    cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int((o.rect.x + o.rect.w)), int((o.rect.y + o.rect.h))), [0,0,255], 3)
+
+    return send, found, score
+
+def sendAlert(curImage, groupID, found, index, score, TimeOuts, TimeoutLength):
+    #if we are reporting pictures, send the picture
+    try:
+        telegram.send_message(groupID, found  + " found on camera " + str(index+1) + " with prob " + str(score)[:5])
+    except Exception as e:
+        print(f"[sendAlert] Failure sending text on Camera {index+1}: {type(e).__name__}: {e}")
+
+    if pictureMode:
+        if curImage is None:
+            print(f"[sendAlert] Error on Camera {index+1}: curImage is None, cannot encode or send photo.")
+            return
+
+        #prep image
+        is_success, im_buf_arr = cv2.imencode(".jpg", curImage, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        if not is_success or im_buf_arr is None:
+            shape_info = curImage.shape if hasattr(curImage, "shape") else "unknown"
+            print(f"[sendAlert] Failed to encode image to JPG on Camera {index+1} (image shape: {shape_info})")
+            try:
+                telegram.send_message(groupID, f"Error encoding photo on camera {index+1}")
+            except Exception as e:
+                print(f"[sendAlert] Failure sending encode error notification: {e}")
+            return
+
+        byte_im = im_buf_arr.tobytes()
+        img_size_kb = len(byte_im) / 1024.0
+
+        #send image
+        try:
+            telegram.send_photo(groupID, photo=byte_im)
+            TimeOuts[str(index+1)][found] = time.time()+TimeoutLength
+            print(f"[sendAlert] Successfully sent photo for Camera {index+1} ({img_size_kb:.1f} KB)")
+        except Exception as e:
+            error_details = str(e)
+            if hasattr(e, "description") and e.description:
+                error_details = f"{e.description} (code: {getattr(e, 'error_code', 'N/A')})"
+            elif hasattr(e, "result_json") and e.result_json:
+                error_details = str(e.result_json)
+
+            shape_info = curImage.shape if hasattr(curImage, "shape") else "unknown"
+            print(f"[sendAlert] Error sending photo on Camera {index+1} ({img_size_kb:.1f} KB, shape: {shape_info}): {type(e).__name__}: {error_details}")
+            traceback.print_exc()
+
+            try:
+                telegram.send_message(groupID, f"Error sending photo on camera {index+1}: {error_details}")
+            except Exception as e2:
+                print(f"[sendAlert] Message send failed when reporting photo error: {type(e2).__name__}: {e2}")
+
 #this is the main processing loop for the image detection pipeline
-def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumObjectSize, targets):
+def runMainLoop(IPList: list, 
+                pictureMode: bool, 
+                TimeoutLength: int, 
+                MotionSensitivity: list, 
+                MinimumObjectSize:int, 
+                targets: list):
     #populate local variables that hold the image Array and current frame counts
     num = len(IPList)
     camImg = [None]*num
@@ -68,7 +197,8 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
         ic = callWrapper(count)
         t.append(c[count].open_video_stream(callback=ic.inner_callback))
-        bgsub.append(cv2.bgsegm.createBackgroundSubtractorMOG())#CNT())# MOG())
+        bgsub.append(cv2.bgsegm.createBackgroundSubtractorCNT(20,True,1000))# MOG())
+#        bgsub.append(cv2.bgsegm.createBackgroundSubtractorMOG())
 
     #Establish the map holding the timeout data
     #make an entry for each camera
@@ -80,22 +210,27 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
     #   into an array parameter so we can have a different value for each camera
     thresh = {}
     for target in targets:
-        thresh[target] = 0.8
+        thresh[target] = 0.7
 
     lastFrame = [0]*num
 
     #nanodet is a faster model and could reasonably work for 16 cameras but it doesn't work
-    # well with black and white frames which is what we get at night from the IR
+    # with black and white frames which is what we get at night from the IR
 #    net = get_model("nanodet", target_size=320, nms_threshold=0.5, use_gpu=False)
     #this is slower than nanodet but necessary if we are going to be using night vision images
-    net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
+#    net = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
+#    net = get_model("yolov7_tiny", num_threads=4, use_gpu=False, use_strides=[16,32])
+    net = YOLO11NCNNWrapper(model_folder="yolo11n_person_ncnn_model")
+    #second order classifier to avoid FP
+#    net2 = get_model("mobilenetv2_ssdlite", target_size=320, num_threads=4, use_gpu=False)
 
     reconnectTimeout = 15
     reconnect = [0]*num
 
     lastAttempt = time.time()
     deadOn = False
-    
+
+    last_nonzero = [0]*num
     #main loop
     while True:
         #if any of the cameras have disconnected, attempt to reconnect
@@ -125,7 +260,7 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         if len(indexesToCheck) == 0 and (time.time()-lastAttempt) > 100:
             print("100 seconds since a frame was seen, reboot all camera feeds")
             for curT in range(len(t)):
-                #Dummy objects will return is_alice as false forcing a reconnect attempt
+                #Dummy objects will return is_alive as false forcing a reconnect attempt
                 t[curT] = Dummy()
             continue
 
@@ -133,62 +268,63 @@ def runMainLoop(IPList, pictureMode, TimeoutLength, MotionSensitivity, MinimumOb
         #   adding this decreased the CPU required by a lot
         #With 4 cameras at 10 fps waiting 0.025s should be the minimum wait
         if len(indexesToCheck) == 0:
-            time.sleep(0.025)
+            time.sleep(0.05)
             continue
 
         lastAttempt = time.time()
 
-        #for every updated image
+        #this may be sped up by putting all of the indexes in a batch and processing at once
+        detect_on_index = []
+
+
+        # this loop handles background subtraction and determines if we should send the image to the model
         for index in indexesToCheck:
             #grab and check background subtraction for motion
             curImage = camImg[index]
             #crop the borders and shrink the image for faster bgsub
-            resized = cv2.resize(curImage[50:-50, 50:-50], (curImage.shape[0]//2, curImage.shape[1]//2))
-            mask = bgsub[index].apply(resized)
+            if index == 0:
+                resized = cv2.resize(curImage[80:, 35:-50], (0, 0), fx=0.5, fy=0.5)
+            elif index == 1:
+                resized = cv2.resize(curImage[180:, :400], (0, 0), fx=0.5, fy=0.5)
+            else: #special case to avoid trees, I could add a custom box to the configuration
+                resized = cv2.resize(curImage[50:-50, 50:-50], (0, 0), fx=0.5, fy=0.5)
 
+#            from PIL import Image
+#            im = Image.fromarray(resized)
+#            im.save("temp" + str(index) + ".png")
+
+            resized2 = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+            mask = bgsub[index].apply(resized2)
             nonzero = np.count_nonzero(mask)
-            #motion sensitivity is tune-able
-            if nonzero > MotionSensitivity:
-                #if motion is high enough, do object detection
-                objects = net(curImage)
-                #debugging information in case something goes wrong
-                print(index, nonzero, datetime.datetime.fromtimestamp(time.time(), pytz.timezone("America/Los_Angeles")))
-                #for each detected object check the scores against the target thresholds
-                for o in objects:
-                    if "class_names" in dir(net) and "label" in dir(o):
-                        for target in targets:
-                            #check to see if they match the object and are above the detection threshold
-                            if net.class_names[int(o.label)] == target and o.prob > thresh[target]:
-                                #if the camera is in timeout there is no need to report anything
-                                if IsInTimeOut(TimeOuts, index, target):
-                                    print("Camera", index+1, "found", target, "but is in timeout")
-                                    continue
 
-                                 #if the object is too small don't bother reporting
-                                if o.rect.w*o.rect.h < MinimumObjectSize:
-                                    print("Camera", index+1, "found", target, "but is too small")
-                                    continue
+            # During intialization the background subtraction is still being established, don't detect objects
+            if frameCount[index] < 100:
+                continue
 
-                                 #this is a new detection of an object, report it through telegram
-                                try:
-                                    telegram.send_message(groupID, target + " detected on Camera" + str(index+1))
-                                except Exception as e:
-                                    print("Error with telegram send_message", e.description)
+            # if motion is high enough, do object detection
+            if nonzero > int(MotionSensitivity[index]) and nonzero > 150 + last_nonzero[index]:
+                detect_on_index.append(index)
+                print(index, nonzero, IPList[index], last_nonzero[index])
 
-                                #if we are reporting pictures, send the picture
-                                if pictureMode:
-                                    #draw rectangle
-                                    cv2.rectangle(curImage, (int(o.rect.x), int(o.rect.y)), (int(o.rect.x + o.rect.w), int(o.rect.y + o.rect.h)), [255,0,0], 3)
-                                    #prep image
-                                    is_success, im_buf_arr = cv2.imencode(".png", curImage)
-                                    byte_im = im_buf_arr.tobytes()
-                                    #send image
-                                    try:
-                                        telegram.send_photo(groupID, photo=byte_im)
-                                    except Exception as e:
-                                        telegram.send_message(groupID, "Error sending photo:" + e.description)
-                                    #add timeout
-                                    TimeOuts[str(index+1)][target] = time.time()+TimeoutLength
+                if index == 0:
+                    # skip the far left and right of the images, avoid the street
+                    cropped = curImage[80:, 35:-50, :].copy()
+                elif index == 1: #special case to avoid trees, I could add a custom box to the configuration
+                    cropped = curImage[180:, :400, :].copy()
+                else: 
+                    cropped = curImage[50:-50, 50:-50,:].copy()
+
+                start = time.time()
+                objects = net(cropped)
+                stop = time.time()
+                print(stop-start, " seconds")
+
+                send, target, score = process_objects(objects, targets, thresh, MinimumObjectSize, TimeOuts, index, cropped)
+
+                if send:
+                    sendAlert(cropped, groupID, target, index, score, TimeOuts, TimeoutLength)
+
+            last_nonzero[index] = nonzero
 #end of runMainLoop
 
 
@@ -220,9 +356,11 @@ IPAddresses = prepArray(IPAddresses)
 Usernames = prepArray(Usernames)
 Passwords = prepArray(Passwords)
 Targets = prepArray(Targets)
+MotionSensitivity = prepArray(MotionSensitivity)
 
 #restructure the IP/user/pass
 for IP, user, password in zip(IPAddresses, Usernames, Passwords):
     IPList.append([IP, user, password])
 
-runMainLoop(IPList, pictureMode, int(TimeoutLength), int(MotionSensitivity), int(MinimumObjectSize), Targets)
+
+runMainLoop(IPList, pictureMode, int(TimeoutLength), MotionSensitivity, int(MinimumObjectSize), Targets)
