@@ -230,7 +230,7 @@ def runMainLoop(IPList: list,
     c = []
     bgsub = []
     for count, ip in enumerate(IPList):
-        c.append(Camera(ip[0], ip[1], ip[2], profile="sub"))
+        c.append(Camera(host=ip[0], user=ip[1], password=ip[2], profile="sub"))
         ic = callWrapper(count)
         t.append(c[count].open_video_stream(callback=ic.inner_callback))
         bgsub.append(cv2.bgsegm.createBackgroundSubtractorCNT(20, True, 1000))
@@ -275,7 +275,7 @@ def runMainLoop(IPList: list,
                  #reboot the camera by replacing the camera and stream objects
                  print("Attempting to reboot camera", str(count+1))
                  ip = IPList[count]
-                 c[count] = Camera(ip[0], ip[1], ip[2], profile="sub")
+                 c[count] = Camera(host=ip[0], user=ip[1], password=ip[2], profile="sub")
                  ic = callWrapper(count)
                  t[count] = c[count].open_video_stream(callback=ic.inner_callback)
                  reconnect[count] = time.time() + reconnectTimeout
