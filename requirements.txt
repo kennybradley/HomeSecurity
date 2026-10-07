@@ -1,4 +1,8 @@
-ncnn >= 1.0.20211116
+numpy < 2
+typing-extensions >= 4.6.0
+ncnn >= 1.0.20240101
 pyTelegramBotAPI == 4.2.0
 reolinkapi >= 0.1.5
-ultralytics
+opencv-contrib-python < 4.9.0.0
+ultralytics >= 8.0.0, <= 8.3.82
+optree >= 0.13.0
